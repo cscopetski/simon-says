@@ -1,0 +1,343 @@
+#include <LiquidCrystal.h>
+
+//Instantiation of Global Constants
+const int rs = 12, en = 10, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+//Instantiation of global variables
+int winCondition = 0, start = 0, PIEZOPIN = 11, simonChance = 4;
+String directionOf = "", simonString = "Middle"; 
+
+
+void setup()
+{
+  //Pin Setup
+  lcd.begin(16,2);
+  pinMode(13, OUTPUT);
+  pinMode(6, OUTPUT);
+  pinMode(9,OUTPUT);
+  
+  //Randomize the numbers
+  randomSeed(analogRead(5));
+  
+  //Call the start function
+  starter();
+}
+void loop()
+{
+  //If the user hasn't reached 10 correct answers and the start function has completed
+  //Begin game
+  if(winCondition<=9&& start == 3)
+  {
+    //Call the main controller of the game
+    //Recursively uses the previous direction simon selected to see if the user moved
+    simonString = simon(RNG(simonChance), simonString);
+    delay(500);
+  }
+  else if(winCondition == 10)
+  {
+    win();
+  }
+  else
+  {
+    starter();
+  }  
+}
+
+void starter()
+{
+  //Print the start message to the LCD
+  lcd.print("Welcome to");
+  lcd.setCursor(0,1);
+  delay(150);
+  lcd.print("Simon Says");
+  delay(550);
+  
+  //If this is the first time starting, play the start song
+  if(start == 0)
+  {
+    for(int i = 1; i<=5; i++)
+    {
+      tone(PIEZOPIN, 600*i, 100);
+      delay(200);
+    }
+
+    for(int i = 1; i<=5; i++)
+    {
+      tone(PIEZOPIN, 3600-600*i, 100);
+      delay(200);  
+    }
+    
+    delay(2000);
+    lcd.clear();
+    delay(2000);
+    start = 1;
+  }
+  
+  //Print press top to start the game
+  lcd.clear();
+  lcd.print("Press Top");
+  lcd.setCursor(0,1);
+  delay(200);
+  lcd.print("to start");
+  
+  //If the user moves the joystick to the top position start the game
+  if(analogRead(A1)>700){
+    start = 3;
+  }
+  delay(2000);
+  lcd.clear();
+  delay(2000);
+}
+  
+//Generates random percentage chance based on 100/n
+boolean RNG(int n)
+{
+  return random(1,100)%n;
+}  
+
+//Calculates which direction the joystick is facing/Simon chooses based off an x and y input
+//Sets the global direction string to the direction
+//Returns an integer 1-9 corresponding to the direction
+int direction(int x, int y)
+{
+  //The different possible directions
+  boolean middle = true;
+  boolean right = false;
+  boolean left = false;
+  boolean up = false;
+  boolean down = false;
+  boolean topRight = false;
+  boolean topLeft = false;
+  boolean botRight = false;
+  boolean botLeft = false;
+  
+  //Checks the values of x and y and calculates the direction based off a range of values
+  //Sets the global string directionOf to the correct direction
+  if(!(x>300&&x<600&&y>300&&y<600))
+  { 
+    middle = false;  
+    if(x<200)
+    {
+      right = true;
+      directionOf = "Right";
+    }
+
+    if(x>700){
+      left = true;
+      directionOf = "Left";
+    }
+
+    if(y<200)
+    {
+      down = true;
+      directionOf = "Bottom";  
+    }
+
+    if(y>700)
+    {
+      up = true;
+      directionOf = "Top";
+    }
+
+    if(right&&up)
+    {
+      topRight=true;
+      right=false;
+      up=false;
+      directionOf = "Top Right";
+    }
+    else if(left&&up)
+    {
+      topLeft=true;
+      left=false;
+      up=false;
+      directionOf  = "Top Left";
+    }
+    else if(right&&down)
+    {
+      botRight=true;
+      right=false;
+      down=false;
+      directionOf = "Bot Right";
+    }
+    else if(left&&down)
+    {
+      botLeft=true;
+      left=false;
+      down=false;
+      directionOf = "Bot Left";
+    }
+  }
+  else
+  {
+    directionOf = "Middle";
+  }
+  
+  //An array of the direction booleans
+  //Only one can be true, this is the direction
+  boolean directions[] = {middle,right,left,up,down,topRight,topLeft,botRight,botLeft};
+  
+  //Searches for the index of the true direction and returns it
+  for(int i = 1; i<=9; i++)
+  {
+    if(directions[i-1])
+    {
+     return i;   
+    }  
+  }
+}    
+
+//The controller of the game
+//Randomly selects a direction and whether or not simon says to move in that direction
+//Compares the user input to the simon output
+//Returns the direction that simon outputed
+String simon(boolean says, String dir){
+  
+  //Random x and y values between 0 and 1024 corresponding to the analog of the joystick
+  int ranX = random(0,1024);
+  int ranY = random(0,1024);
+  
+  //Call the direction method and store the direction 
+  int simonDirection = direction(ranX,ranY);
+  String simonString = directionOf;
+  String userString;
+  
+  //If simon says something 
+  //Compare the user input to simon's output
+  if(says)
+  {
+    //Simon Says: ...
+    lcd.print("Simon says move");
+    lcd.setCursor(0,1);
+    lcd.print("to the " + simonString);
+    delay(2000);
+    direction(analogRead(A0),analogRead(A1));
+    lcd.clear();
+    lcd.print(directionOf);
+    userString = directionOf;
+    delay(2000);
+    lcd.clear();
+    lcd.print(userString);
+    delay(2000);
+    lcd.clear();
+
+    //If they follow Simon's instructions
+    //Flash a green LED and print "Correct"
+    //Increment the win condition
+    if(simonString.equals(userString))
+    {
+      digitalWrite(9,HIGH);
+      lcd.clear();
+      lcd.print("Correct!");
+      delay(500);
+      digitalWrite(9,LOW);
+      lcd.clear();
+      winCondition += 1;
+      return simonString;
+      
+    //If they fail to follow the instructions
+    //Execute the fail method
+    }
+    else
+    {
+          fail();
+          return "Middle";
+    }
+    
+  //If Simon says nothing
+  //Check that the user did not move from the previous position
+  }
+  else
+  {
+    lcd.print("Move to the"); 
+    lcd.setCursor(0,1);
+    lcd.print(simonString);
+    delay(2000);
+    direction(analogRead(A0),analogRead(A1));
+    lcd.clear();
+    userString = directionOf;
+    delay(2000);
+    lcd.clear();
+    
+    //If they move execute the fail method
+    if(!userString.equals(dir))
+    {
+      fail();
+      return "Middle";
+    }
+    //Otherwise if they do not move
+    //Flash a green LED and print "Correct"
+    //Increment the win condition, return the previous direction
+    else
+    {
+      digitalWrite(9,HIGH);
+      lcd.clear();
+      lcd.print("Correct!");
+      delay(500);
+      digitalWrite(9,LOW);
+      lcd.clear();
+      winCondition += 1;
+      return dir; 
+    }
+  }  
+}
+
+//Produces visual effects when the user fails
+//Also offers option to restart or quit game
+boolean fail()
+{
+  
+  //Flashes a red LED and prints Incorrect
+  lcd.print("Incorrect!");
+  delay(600);
+  digitalWrite(6, HIGH);
+  failSong();
+  delay(600);
+  lcd.clear();
+  digitalWrite(6, LOW);
+
+  //Give the user a chance to try again
+  //by moving the joystick to the top
+  lcd.print("Move to the top");
+  lcd.setCursor(0,1);
+  lcd.print("to try again");
+  delay(5000);
+  int top = direction(analogRead(A0),analogRead(A1));
+  delay(1000);
+  lcd.clear();
+  
+  //If the user doesn't move to the top print You Lose and end the game
+  if(top!=4)
+  {
+    lcd.print("You Lose!");
+    failSong();
+    delay(5000);
+    exit(0);
+  }
+  
+  winCondition=0;
+  lcd.clear();
+  delay(600);
+}
+
+//The song to play when user fails
+void failSong(){
+  for(int i = 7000; i>1; i/=2){
+    tone(PIEZOPIN, i, 20000);
+    delay(200);
+  }
+}
+
+//When the user wins the game by reaching 10 correct answers
+//Play a winning song and end the game
+void win()
+{
+  lcd.print("You WIN!!!");
+  for(int i = 1; i<=5; i++)
+  {
+    tone(PIEZOPIN, 600+i*100, 2000);
+    delay(500);
+  }
+  exit(0);
+}
